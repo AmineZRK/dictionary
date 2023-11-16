@@ -5,18 +5,27 @@ import (
 	"estiam/dictionary"
 	"fmt"
 	"os"
+	"strings"
 )
+
+const filename = "dictionary.txt"
 
 func main() {
 	d := dictionary.New()
 	reader := bufio.NewReader(os.Stdin)
+
+	// Load data from the file at the beginning
+	err := d.LoadFromFile(filename)
+	if err != nil {
+		fmt.Println("Error loading data:", err)
+	}
 
 	for {
 		fmt.Println("1. Add Word")
 		fmt.Println("2. Define Word")
 		fmt.Println("3. Remove Word")
 		fmt.Println("4. List Words")
-		fmt.Println("5. Exit")
+		fmt.Println("5. Save and Exit")
 
 		fmt.Print("Choose an action (1-5): ")
 		var choice int
@@ -32,6 +41,11 @@ func main() {
 		case 4:
 			actionList(d)
 		case 5:
+			// Save data to the file before exiting
+			err := d.SaveToFile(filename)
+			if err != nil {
+				fmt.Println("Error saving data:", err)
+			}
 			os.Exit(0)
 		default:
 			fmt.Println("Invalid choice. Please choose a number between 1 and 5.")
@@ -42,11 +56,11 @@ func main() {
 func actionAdd(d *dictionary.Dictionary, reader *bufio.Reader) {
 	fmt.Print("Enter word: ")
 	word, _ := reader.ReadString('\n')
-	word = word[:len(word)-1] // Remove the newline character
+	word = strings.TrimSpace(word) // Remove the newline character
 
 	fmt.Print("Enter definition: ")
 	definition, _ := reader.ReadString('\n')
-	definition = definition[:len(definition)-1] // Remove the newline character
+	definition = strings.TrimSpace(definition) // Remove the newline character
 
 	d.Add(word, definition)
 	fmt.Println("Word added successfully!")
@@ -55,7 +69,7 @@ func actionAdd(d *dictionary.Dictionary, reader *bufio.Reader) {
 func actionDefine(d *dictionary.Dictionary, reader *bufio.Reader) {
 	fmt.Print("Enter word to define: ")
 	word, _ := reader.ReadString('\n')
-	word = word[:len(word)-1] // Remove the newline character
+	word = strings.TrimSpace(word)
 
 	entry, err := d.Get(word)
 	if err != nil {
@@ -68,7 +82,7 @@ func actionDefine(d *dictionary.Dictionary, reader *bufio.Reader) {
 func actionRemove(d *dictionary.Dictionary, reader *bufio.Reader) {
 	fmt.Print("Enter word to remove: ")
 	word, _ := reader.ReadString('\n')
-	word = word[:len(word)-1] // Remove the newline character
+	word = strings.TrimSpace(word)
 
 	d.Remove(word)
 	fmt.Println("Word removed successfully!")
