@@ -14,7 +14,7 @@ func main() {
 	d := dictionary.New()
 	reader := bufio.NewReader(os.Stdin)
 
-	// Load data from the file at the beginning
+	// Load data from the file
 	err := d.LoadFromFile(filename)
 	if err != nil {
 		fmt.Println("Error loading data:", err)
@@ -41,7 +41,7 @@ func main() {
 		case 4:
 			actionList(d)
 		case 5:
-			// Save data to the file before exiting
+			// Save data to the file
 			err := d.SaveToFile(filename)
 			if err != nil {
 				fmt.Println("Error saving data:", err)
@@ -56,11 +56,11 @@ func main() {
 func actionAdd(d *dictionary.Dictionary, reader *bufio.Reader) {
 	fmt.Print("Enter word: ")
 	word, _ := reader.ReadString('\n')
-	word = strings.TrimSpace(word) // Remove the newline character
+	word = strings.TrimSpace(word)
 
 	fmt.Print("Enter definition: ")
 	definition, _ := reader.ReadString('\n')
-	definition = strings.TrimSpace(definition) // Remove the newline character
+	definition = strings.TrimSpace(definition)
 
 	d.Add(word, definition)
 	fmt.Println("Word added successfully!")

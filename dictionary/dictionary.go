@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
 type Entry struct {
@@ -16,20 +17,52 @@ func (e Entry) String() string {
 }
 
 type Dictionary struct {
-	entries map[string]Entry
+	entries  map[string]Entry
+	mu       sync.Mutex
+	addCh    chan entryOperation
+	removeCh chan string
+}
+
+type entryOperation struct {
+	word       string
+	definition string
 }
 
 func New() *Dictionary {
-	return &Dictionary{
-		entries: make(map[string]Entry),
+	d := &Dictionary{
+		entries:  make(map[string]Entry),
+		addCh:    make(chan entryOperation),
+		removeCh: make(chan string),
+	}
+
+	go d.processOperations()
+
+	return d
+}
+
+func (d *Dictionary) processOperations() {
+	for {
+		select {
+		case op := <-d.addCh:
+			d.mu.Lock()
+			d.entries[op.word] = Entry{Definition: op.definition}
+			d.mu.Unlock()
+		case word := <-d.removeCh:
+			d.mu.Lock()
+			delete(d.entries, word)
+			d.mu.Unlock()
+		}
 	}
 }
 
 func (d *Dictionary) Add(word string, definition string) {
-	d.entries[word] = Entry{Definition: definition}
+	d.addCh <- entryOperation{word: word, definition: definition}
 }
 
 func (d *Dictionary) Get(word string) (Entry, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	entry, found := d.entries[word]
 	if !found {
 		return Entry{}, nil
@@ -38,10 +71,13 @@ func (d *Dictionary) Get(word string) (Entry, error) {
 }
 
 func (d *Dictionary) Remove(word string) {
-	delete(d.entries, word)
+	d.removeCh <- word
 }
 
 func (d *Dictionary) List() ([]string, map[string]Entry) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	words := make([]string, 0, len(d.entries))
 	for word := range d.entries {
 		words = append(words, word)
@@ -82,7 +118,6 @@ func (d *Dictionary) LoadFromFile(filename string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Split the line into word and definition
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid line format: %s", line)
