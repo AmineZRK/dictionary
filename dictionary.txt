@@ -1,6 +1,4 @@
+aaaaaaaaaaaaaaaa: zerr
+hello: zerr
 hiiiiiiii: booooooo
-amine: man
-hhhhh: aaaaaa
-zerrouki: mohammed
-hello: world
 ggggggg: ddddddddd

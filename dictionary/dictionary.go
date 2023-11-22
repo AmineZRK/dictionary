@@ -19,20 +19,22 @@ func (e Entry) String() string {
 type Dictionary struct {
 	entries  map[string]Entry
 	mu       sync.Mutex
-	addCh    chan entryOperation
+	addCh    chan EntryOperation
 	removeCh chan string
+	filename string
 }
 
-type entryOperation struct {
-	word       string
-	definition string
+type EntryOperation struct {
+	Word       string `json:"word"`
+	Definition string `json:"definition"`
 }
 
-func New() *Dictionary {
+func New(filename string) *Dictionary {
 	d := &Dictionary{
 		entries:  make(map[string]Entry),
-		addCh:    make(chan entryOperation),
+		addCh:    make(chan EntryOperation),
 		removeCh: make(chan string),
+		filename: filename,
 	}
 
 	go d.processOperations()
@@ -45,7 +47,7 @@ func (d *Dictionary) processOperations() {
 		select {
 		case op := <-d.addCh:
 			d.mu.Lock()
-			d.entries[op.word] = Entry{Definition: op.definition}
+			d.entries[op.Word] = Entry{Definition: op.Definition}
 			d.mu.Unlock()
 		case word := <-d.removeCh:
 			d.mu.Lock()
@@ -55,8 +57,14 @@ func (d *Dictionary) processOperations() {
 	}
 }
 
-func (d *Dictionary) Add(word string, definition string) {
-	d.addCh <- entryOperation{word: word, definition: definition}
+func (d *Dictionary) Add(word string, definition string) (string, error) {
+	d.addCh <- EntryOperation{Word: word, Definition: definition}
+
+	if err := d.SaveToFile(d.filename); err != nil {
+		return "", fmt.Errorf("error saving data: %v", err)
+	}
+
+	return fmt.Sprintf("Word '%s' Added successfully", word), nil
 }
 
 func (d *Dictionary) Get(word string) (Entry, error) {
@@ -65,13 +73,29 @@ func (d *Dictionary) Get(word string) (Entry, error) {
 
 	entry, found := d.entries[word]
 	if !found {
-		return Entry{}, nil
+		return Entry{}, fmt.Errorf("word not found: %s", word)
 	}
 	return entry, nil
 }
 
-func (d *Dictionary) Remove(word string) {
+func (d *Dictionary) Remove(word string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, found := d.entries[word]; !found {
+		return fmt.Sprintf("Word '%s' does not exist in the dictionary", word), nil
+	}
+
+	delete(d.entries, word)
+
 	d.removeCh <- word
+
+	if err := d.SaveToFile(d.filename); err != nil {
+		return "", fmt.Errorf("error saving data: %v", err)
+	}
+
+	return fmt.Sprintf("Word '%s' removed successfully", word), nil
+
 }
 
 func (d *Dictionary) List() ([]string, map[string]Entry) {
@@ -96,7 +120,7 @@ func (d *Dictionary) SaveToFile(filename string) error {
 	writer := bufio.NewWriter(file)
 
 	for word, entry := range d.entries {
-		_, err := fmt.Fprintf(writer, "%s: %s\n", word, entry.Definition)
+		_, err := fmt.Fprintln(writer, word+":", entry.Definition)
 		if err != nil {
 			return err
 		}
