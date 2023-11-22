@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/json"
 	"estiam/dictionary"
+	"estiam/middleware"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,11 +13,23 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const logFilename = "jornale.txt"
+
 func main() {
 	filename := "dictionary.txt"
+	// Initialize the log file
+	errs := middleware.SetLogFile(logFilename)
+	if errs != nil {
+		fmt.Println("Error initializing log file:", errs)
+		return
+	}
+
 	d := dictionary.New(filename)
 
 	r := mux.NewRouter()
+
+	r.Use(middleware.LoggingMiddleware)
+
 	r.HandleFunc("/add", addEntryHandler(d, filename)).Methods("POST")
 	r.HandleFunc("/get/{word}", getDefinitionHandler(d)).Methods("GET")
 	r.HandleFunc("/remove/{word}", removeEntryHandler(d)).Methods("DELETE")
