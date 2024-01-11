@@ -29,7 +29,7 @@ func main() {
 	r := mux.NewRouter()
 
 	r.Use(middleware.LoggingMiddleware)
-
+	r.Use(middleware.AuthMiddleware)
 	r.HandleFunc("/add", addEntryHandler(d, filename)).Methods("POST")
 	r.HandleFunc("/get/{word}", getDefinitionHandler(d)).Methods("GET")
 	r.HandleFunc("/remove/{word}", removeEntryHandler(d)).Methods("DELETE")
