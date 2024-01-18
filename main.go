@@ -61,6 +61,12 @@ func addEntryHandler(d *dictionary.Dictionary, filename string) http.HandlerFunc
 			return
 		}
 
+		err = middleware.ValidateData(entry.Word, entry.Definition)
+		if err != nil {
+			middleware.HandleError(w, fmt.Sprintf("Error validating data: %v", err), http.StatusBadRequest)
+			return
+		}
+
 		fmt.Printf("Received JSON: %+v\n", entry)
 
 		word := strings.TrimSpace(entry.Word)
@@ -85,7 +91,7 @@ func getDefinitionHandler(d *dictionary.Dictionary) http.HandlerFunc {
 
 		entry, err := d.Get(word)
 		if err != nil {
-			http.Error(w, "Word not found", http.StatusAccepted)
+			middleware.HandleError(w, fmt.Sprintf("Error getting word: %v", err), http.StatusAccepted)
 			return
 		}
 
@@ -101,7 +107,7 @@ func removeEntryHandler(d *dictionary.Dictionary) http.HandlerFunc {
 
 		message, err := d.Remove(word)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error removing word: %v", err), http.StatusInternalServerError)
+			middleware.HandleError(w, fmt.Sprintf("Error removing word: %v", err), http.StatusInternalServerError)
 			return
 		}
 
