@@ -16,9 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMain(t *testing.T) {
+// TestAddWordHandler tests the AddEntryHandler function.
+func TestAddWordHandler(t *testing.T) {
 	// 1. Create a new dictionary and logger.
-	d := dictionary.New("test_dictionary.txt")
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	if err != nil {
+		t.Fatal("Error creating dictionary:", err)
+	}
 	logger, err := middleware.NewLogger("test_log.txt")
 	if err != nil {
 		t.Fatal("Error creating logger:", err)
@@ -41,7 +45,7 @@ func TestMain(t *testing.T) {
 	}
 
 	// 3. Create a handler using AddEntryHandler.
-	handler := handlers.AddEntryHandler(d, "test_dictionary.txt")
+	handler := handlers.AddEntryHandler(d)
 
 	// 4. Create a router and apply the logger middleware directly.
 	r := mux.NewRouter()
@@ -60,9 +64,13 @@ func TestMain(t *testing.T) {
 	assert.Equal(t, strings.TrimSpace(expectedMessage), strings.TrimSpace(w.Body.String()), "Response body should match expected message")
 }
 
+// TestGetDefinitionHandler tests the GetDefinitionHandler function.
 func TestGetDefinitionHandler(t *testing.T) {
 	// 1. Create a new dictionary and logger.
-	d := dictionary.New("test_dictionary.txt")
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	if err != nil {
+		t.Fatal("Error creating dictionary:", err)
+	}
 	logger, err := middleware.NewLogger("test_log.txt")
 	if err != nil {
 		t.Fatal("Error creating logger:", err)
@@ -87,17 +95,21 @@ func TestGetDefinitionHandler(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	// 6. Verify the response status code.
-	assert.Equal(t, http.StatusAccepted, w.Code, "Status code should be Accepted")
+	assert.Equal(t, http.StatusOK, w.Code, "Status code should be OK")
 
-	// 7. Verify the response body or any other expectations based on your implementation.
-	// Example: Check if the response contains a JSON message.
-	expectedResponse := "Error getting word: word not found: test_word\n"
-	assert.Equal(t, expectedResponse, w.Body.String(), "Response body should match expected response")
+	// 7. Verify the response body using JSONEq.
+	expectedResponse := `{"word":"test_word","definition":"test_definition"}`
+	assert.JSONEq(t, expectedResponse, w.Body.String(), "Response body should match expected response")
 }
 
+// TestRemoveEntryHandler tests the RemoveEntryHandler function.
 func TestRemoveEntryHandler(t *testing.T) {
 	// 1. Create a new dictionary and logger.
-	d := dictionary.New("test_dictionary.txt")
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	if err != nil {
+		t.Fatal("Error creating dictionary:", err)
+	}
+
 	logger, err := middleware.NewLogger("test_log.txt")
 	if err != nil {
 		t.Fatal("Error creating logger:", err)
@@ -133,9 +145,13 @@ func TestRemoveEntryHandler(t *testing.T) {
 	assert.Contains(t, w.Body.String(), expectedResponse, "Response body should contain expected response")
 }
 
+// TestListWordsHandler tests the ListWordsHandler function.
 func TestListWordsHandler(t *testing.T) {
 	// 1. Create a new dictionary and logger.
-	d := dictionary.New("test_dictionary.txt")
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	if err != nil {
+		t.Fatal("Error creating dictionary:", err)
+	}
 	logger, err := middleware.NewLogger("test_log.txt")
 	if err != nil {
 		t.Fatal("Error creating logger:", err)

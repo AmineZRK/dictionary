@@ -1,13 +1,14 @@
 package dictionary
 
 import (
-	"bufio"
+	"context"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// Entry represents a dictionary entry containing a definition.
 type Entry struct {
 	Definition string
 }
@@ -16,142 +17,107 @@ func (e Entry) String() string {
 	return e.Definition
 }
 
+// Dictionary represents a MongoDB-backed dictionary.
 type Dictionary struct {
-	entries  map[string]Entry
-	mu       sync.Mutex
-	addCh    chan EntryOperation
-	removeCh chan string
-	filename string
+	collection *mongo.Collection
 }
 
+// EntryOperation represents a dictionary operation for adding or updating an entry.
 type EntryOperation struct {
 	Word       string `json:"word"`
 	Definition string `json:"definition"`
 }
 
-func New(filename string) *Dictionary {
-	d := &Dictionary{
-		entries:  make(map[string]Entry),
-		addCh:    make(chan EntryOperation),
-		removeCh: make(chan string),
-		filename: filename,
+// NewDictionary creates a new instance of the Dictionary.
+func NewDictionary(databaseURI, databaseName, collectionName string) (*Dictionary, error) {
+	clientOptions := options.Client().ApplyURI(databaseURI)
+
+	client, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		return nil, err
 	}
 
-	go d.processOperations()
-
-	return d
-}
-
-func (d *Dictionary) processOperations() {
-	for {
-		select {
-		case op := <-d.addCh:
-			d.mu.Lock()
-			d.entries[op.Word] = Entry{Definition: op.Definition}
-			d.mu.Unlock()
-		case word := <-d.removeCh:
-			d.mu.Lock()
-			delete(d.entries, word)
-			d.mu.Unlock()
-		}
+	err = client.Ping(context.Background(), nil)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Dictionary{
+		collection: client.Database(databaseName).Collection(collectionName),
+	}, nil
 }
 
+// Add adds a word with its definition to the dictionary.
 func (d *Dictionary) Add(word string, definition string) (string, error) {
-	d.addCh <- EntryOperation{Word: word, Definition: definition}
+	entry := Entry{Definition: definition}
 
-	if err := d.SaveToFile(d.filename); err != nil {
-		return "", fmt.Errorf("error saving data: %v", err)
+	_, err := d.collection.InsertOne(context.TODO(), map[string]interface{}{
+		"word":       word,
+		"definition": entry.Definition,
+	})
+
+	if err != nil {
+		return "", err
 	}
 
 	return fmt.Sprintf("Word '%s' Added successfully", word), nil
 }
 
+// Get retrieves the definition of a word from the dictionary.
 func (d *Dictionary) Get(word string) (Entry, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	var result map[string]interface{}
+	err := d.collection.FindOne(context.TODO(), map[string]interface{}{
+		"word": word,
+	}).Decode(&result)
 
-	entry, found := d.entries[word]
-	if !found {
+	if err != nil {
 		return Entry{}, fmt.Errorf("word not found: %s", word)
 	}
-	return entry, nil
-}
 
-func (d *Dictionary) Remove(word string) (string, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if _, found := d.entries[word]; !found {
-		return fmt.Sprintf("Word '%s' does not exist in the dictionary", word), nil
+	definition, ok := result["definition"].(string)
+	if !ok {
+		return Entry{}, fmt.Errorf("invalid data structure for definition: %v", result["definition"])
 	}
 
-	delete(d.entries, word)
+	return Entry{Definition: definition}, nil
+}
 
-	d.removeCh <- word
+// Remove removes a word and its definition from the dictionary.
+func (d *Dictionary) Remove(word string) (string, error) {
+	filter := map[string]interface{}{
+		"word": word,
+	}
 
-	if err := d.SaveToFile(d.filename); err != nil {
-		return "", fmt.Errorf("error saving data: %v", err)
+	result, err := d.collection.DeleteMany(context.TODO(), filter)
+	if err != nil {
+		return "", fmt.Errorf("error removing word: %v", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Sprintf("Word '%s' not found", word), nil
 	}
 
 	return fmt.Sprintf("Word '%s' removed successfully", word), nil
-
 }
 
-func (d *Dictionary) List() ([]string, map[string]Entry) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	words := make([]string, 0, len(d.entries))
-	for word := range d.entries {
-		words = append(words, word)
-	}
-	return words, d.entries
-}
-
-// SaveToFile saves the dictionary data to a file.
-func (d *Dictionary) SaveToFile(filename string) error {
-	file, err := os.Create(filename)
+// List retrieves a list of all words in the dictionary.
+func (d *Dictionary) List() ([]string, error) {
+	cursor, err := d.collection.Find(context.TODO(), map[string]interface{}{})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer file.Close()
+	defer cursor.Close(context.TODO())
 
-	writer := bufio.NewWriter(file)
-
-	for word, entry := range d.entries {
-		_, err := fmt.Fprintln(writer, word+":", entry.Definition)
-		if err != nil {
-			return err
-		}
-	}
-
-	return writer.Flush()
-}
-
-// LoadFromFile loads the dictionary data from a file.
-func (d *Dictionary) LoadFromFile(filename string) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid line format: %s", line)
+	var words []string
+	for cursor.Next(context.TODO()) {
+		var result map[string]interface{}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
 		}
 
-		word := strings.TrimSpace(parts[0])
-		definition := strings.TrimSpace(parts[1])
-
-		d.Add(word, definition)
+		// Exclude _id field and extract word
+		words = append(words, result["word"].(string))
 	}
 
-	return scanner.Err()
+	return words, nil
 }

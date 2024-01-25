@@ -4,24 +4,22 @@ package dictionary_test
 import (
 	"estiam/dictionary"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddWord(t *testing.T) {
-	// 1. Create a new instance of the Dictionary.
-	filename := "test_dictionary.txt"
-	d := dictionary.New(filename)
-	defer cleanupDictionaryFile(filename)
+	// Step 1: Create a new instance of the Dictionary.
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	assert.NoError(t, err, "Unexpected error creating dictionary instance")
 
-	// 2. Call the Add function to add a word to the dictionary.
+	// Step 2: Call the Add function to add a word to the dictionary.
 	word := "testWord"
 	definition := "testDefinition"
 	message, err := d.Add(word, definition)
 
-	// 3. Use assertions to verify that the word was added successfully.
+	// Step 3: Use assertions to verify that the word was added successfully.
 	assert.NoError(t, err, "Unexpected error adding word")
 	assert.Equal(t, fmt.Sprintf("Word '%s' Added successfully", word), message, "Unexpected message")
 
@@ -31,50 +29,40 @@ func TestAddWord(t *testing.T) {
 	assert.Equal(t, definition, entry.Definition, "Unexpected definition for the added word")
 }
 
-// Helper function to clean up the test dictionary file
-func cleanupDictionaryFile(filename string) {
-	err := os.Remove(filename)
-	if err != nil {
-		fmt.Printf("Error removing test dictionary file: %v\n", err)
-	}
-}
-
 func TestGetWord(t *testing.T) {
-	// 1. Create a new instance of the Dictionary.
-	filename := "test_dictionary.txt"
-	d := dictionary.New(filename)
-	defer cleanupDictionaryFile(filename)
+	// Step 1: Create a new instance of the Dictionary.
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	assert.NoError(t, err, "Unexpected error creating dictionary instance")
 
-	// 2. Add a word to the dictionary.
+	// Step 2: Add a word to the dictionary.
 	word := "testWord"
 	definition := "testDefinition"
-	_, err := d.Add(word, definition)
+	_, err = d.Add(word, definition)
 	assert.NoError(t, err, "Unexpected error adding word")
 
-	// 3. Call the Get function to retrieve the added word.
+	// Step 3: Call the Get function to retrieve the added word.
 	entry, err := d.Get(word)
 
-	// 4. Use assertions to verify that the word was retrieved successfully.
+	// Step 4: Use assertions to verify that the word was retrieved successfully.
 	assert.NoError(t, err, "Unexpected error getting word")
 	assert.Equal(t, definition, entry.Definition, "Unexpected definition for the retrieved word")
 }
 
 func TestRemoveWord(t *testing.T) {
-	// 1. Create a new instance of the Dictionary.
-	filename := "test_dictionary.txt"
-	d := dictionary.New(filename)
-	defer cleanupDictionaryFile(filename)
+	// Step 1: Create a new instance of the Dictionary.
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	assert.NoError(t, err, "Unexpected error creating dictionary instance")
 
-	// 2. Add a word to the dictionary.
+	// Step 2: Add a word to the dictionary.
 	word := "testWord"
 	definition := "testDefinition"
-	_, err := d.Add(word, definition)
+	_, err = d.Add(word, definition)
 	assert.NoError(t, err, "Unexpected error adding word")
 
-	// 3. Call the Remove function to remove the added word.
+	// Step 3: Call the Remove function to remove the added word.
 	message, err := d.Remove(word)
 
-	// 4. Use assertions to verify that the word was removed successfully.
+	// Step 4: Use assertions to verify that the word was removed successfully.
 	assert.NoError(t, err, "Unexpected error removing word")
 	assert.Equal(t, fmt.Sprintf("Word '%s' removed successfully", word), message, "Unexpected message")
 
@@ -84,12 +72,11 @@ func TestRemoveWord(t *testing.T) {
 }
 
 func TestListWords(t *testing.T) {
-	// 1. Create a new instance of the Dictionary.
-	filename := "test_dictionary.txt"
-	d := dictionary.New(filename)
-	defer cleanupDictionaryFile(filename)
+	// Step 1: Create a new instance of the Dictionary.
+	d, err := dictionary.NewDictionary("mongodb://localhost:27017", "testDB", "testCollection")
+	assert.NoError(t, err, "Unexpected error creating dictionary instance")
 
-	// 2. Add multiple words to the dictionary.
+	// Step 2: Add multiple words to the dictionary.
 	wordsToAdd := []struct {
 		word       string
 		definition string
@@ -104,10 +91,11 @@ func TestListWords(t *testing.T) {
 		assert.NoError(t, err, "Unexpected error adding word")
 	}
 
-	// 3. Call the List function to retrieve the list of words.
-	words, _ := d.List()
+	// Step 3: Call the List function to retrieve the list of words.
+	words, err := d.List()
+	assert.NoError(t, err, "Unexpected error getting list of words")
 
-	// 4. Use assertions to verify the list of words.
+	// Step 4: Use assertions to verify the list of words.
 	expectedWords := []string{"word1", "word2", "word3"}
 	assert.ElementsMatch(t, expectedWords, words, "Unexpected list of words")
 }

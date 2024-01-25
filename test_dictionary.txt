@@ -1,2 +1,0 @@
-test_word_1: definition_1
-test_word_2: definition_2

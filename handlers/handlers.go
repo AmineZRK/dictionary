@@ -1,4 +1,4 @@
-// handlers/handlers.go
+// handlers.go
 package handlers
 
 import (
@@ -12,11 +12,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const logFilename = "jornale.txt"
-
 // AddEntryHandler is a handler for adding entries to the dictionary.
-func AddEntryHandler(d *dictionary.Dictionary, filename string) http.HandlerFunc {
+func AddEntryHandler(d *dictionary.Dictionary) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Decode the incoming JSON request into an EntryOperation.
 		var entry dictionary.EntryOperation
 		err := json.NewDecoder(r.Body).Decode(&entry)
 		if err != nil {
@@ -25,6 +24,7 @@ func AddEntryHandler(d *dictionary.Dictionary, filename string) http.HandlerFunc
 			return
 		}
 
+		// Validate the incoming data.
 		err = middleware.ValidateData(entry.Word, entry.Definition)
 		if err != nil {
 			middleware.HandleError(w, fmt.Sprintf("Error validating data: %v", err), http.StatusBadRequest)
@@ -33,9 +33,11 @@ func AddEntryHandler(d *dictionary.Dictionary, filename string) http.HandlerFunc
 
 		fmt.Printf("Received JSON: %+v\n", entry)
 
+		// Trim leading and trailing whitespaces from word and definition.
 		word := strings.TrimSpace(entry.Word)
 		definition := strings.TrimSpace(entry.Definition)
 
+		// Add the word to the dictionary.
 		message, err := d.Add(word, definition)
 
 		if err != nil {
@@ -44,53 +46,61 @@ func AddEntryHandler(d *dictionary.Dictionary, filename string) http.HandlerFunc
 		}
 
 		jsonResponse(w, map[string]string{"message": message})
-		//w.WriteHeader(http.StatusCreated)
 	}
 }
 
-// GetDefinitionHandler is a handler for getting the definition of a word.
+// GetDefinitionHandler retrieves the definition of a word from the dictionary.
 func GetDefinitionHandler(d *dictionary.Dictionary) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract the word parameter from the request.
 		params := mux.Vars(r)
 		word := params["word"]
 
+		// Get the definition of the word from the dictionary.
 		entry, err := d.Get(word)
 		if err != nil {
-			middleware.HandleError(w, fmt.Sprintf("Error getting word: %v", err), http.StatusAccepted)
+			middleware.HandleError(w, fmt.Sprintf("Error getting word: %v", err), http.StatusNotFound)
 			return
 		}
 
-		response := map[string]string{"word": word, "definition": entry.Definition}
+		// Prepare and send the response.
+		response := map[string]string{"word": word, "definition": entry.String()}
 		jsonResponse(w, response)
 	}
 }
 
-// RemoveEntryHandler is a handler for removing entries from the dictionary.
+// RemoveEntryHandler removes a word and its definition from the dictionary.
 func RemoveEntryHandler(d *dictionary.Dictionary) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract the word parameter from the request.
 		params := mux.Vars(r)
 		word := params["word"]
 
+		// Remove the word from the dictionary.
 		message, err := d.Remove(word)
 		if err != nil {
 			middleware.HandleError(w, fmt.Sprintf("Error removing word: %v", err), http.StatusInternalServerError)
 			return
 		}
 
+		// Prepare and send the response.
 		jsonResponse(w, map[string]string{"message": message})
 	}
 }
 
-// ListWordsHandler is a handler for listing all words in the dictionary.
+// ListWordsHandler retrieves a list of all words in the dictionary.
 func ListWordsHandler(d *dictionary.Dictionary) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Get the list of words from the dictionary.
 		words, _ := d.List()
 
+		// Prepare and send the response.
 		response := map[string][]string{"words": words}
 		jsonResponse(w, response)
 	}
 }
 
+// jsonResponse sets the Content-Type header to JSON and encodes the given data as JSON.
 func jsonResponse(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
